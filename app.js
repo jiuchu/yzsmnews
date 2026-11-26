@@ -105,6 +105,7 @@ function makeMeta(item) {
   meta.append(createElement("span", "category-badge", item.category));
   meta.append(createElement("span", "", formatDate(item.publishedAt, true)));
   if (item.translationPending) meta.append(createElement("span", "pending-badge", "英文原文"));
+  else if (item.contentTranslationPending) meta.append(createElement("span", "pending-badge", "英文全文"));
   return meta;
 }
 
