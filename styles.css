@@ -1088,6 +1088,52 @@ main {
   font-size: 12px;
 }
 
+.article-related-sources,
+.dialog-related-sources {
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.article-related-sources h2,
+.dialog-related-sources h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+}
+
+.article-related-sources ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.article-related-sources a,
+.dialog-related-link {
+  color: var(--gold);
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.article-related-sources a:hover,
+.dialog-related-link:hover {
+  text-decoration: underline;
+}
+
+.dialog-related-sources {
+  display: grid;
+  gap: 10px;
+}
+
+.dialog-related-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
 .article-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1257,6 +1303,29 @@ main {
 
 .dialog-link {
   margin-top: 28px;
+}
+
+.dialog-fulltext {
+  margin-top: 36px;
+}
+
+.dialog-fulltext h2 {
+  font-size: 22px;
+}
+
+.dialog-fulltext .article-content p {
+  font-size: 16px;
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.dialog-actions .dialog-link {
+  margin-top: 0;
 }
 
 .error-state {

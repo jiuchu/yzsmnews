@@ -224,13 +224,61 @@ function renderStats() {
   }
 }
 
+function hasChinese(value = "") {
+  return /[\u3400-\u9fff]/.test(value);
+}
+
+function appendDialogFullText(body, item) {
+  const original = String(item.contentOriginal || "").trim();
+  const translated = hasChinese(item.content) ? String(item.content).trim() : "";
+  const fullText = translated || original;
+  const section = createElement("section", "article-content-section dialog-fulltext");
+  section.append(createElement("h2", "", translated ? "全文" : "英文全文"));
+
+  if (fullText) {
+    const content = createElement("div", "article-content");
+    fullText.split(/\n{2,}/).filter(Boolean).forEach((paragraph) => {
+      content.append(createElement("p", "", paragraph.replace(/\n/g, " ")));
+    });
+    section.append(content);
+  } else {
+    section.append(createElement("p", "article-notice", "全文暂未采集成功，下次自动更新会重试。当前展示官方摘要。"));
+  }
+
+  body.append(section);
+  if (translated) {
+    body.append(createElement("p", "article-notice", "中文全文为机器翻译，请以官方原文为准。"));
+  } else if (original) {
+    body.append(createElement("p", "article-notice", "中文全文尚未完成翻译，以下先展示官方英文全文；下次自动更新会继续补译。"));
+  }
+}
+
+function appendDialogRelatedSources(body, item) {
+  const sources = (item.relatedSources || []).filter((source) => safeImageUrl(source.url) && (source.title || source.titleOriginal));
+  if (!sources.length) return;
+
+  const section = createElement("section", "dialog-related-sources");
+  section.append(createElement("h2", "", "同事件官方报道"));
+  sources.forEach((source) => {
+    const link = createElement("a", "dialog-related-link", source.title || source.titleOriginal);
+    link.href = safeImageUrl(source.url);
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.append(createElement("span", "", "↗"));
+    section.append(link);
+  });
+  body.append(section);
+}
+
 function openDialog(item) {
   const media = makeImage(item, "dialog-media", true);
   const body = createElement("div", "dialog-body");
   const title = createElement("h2", "dialog-title", item.title);
+  title.id = "dialog-title";
   const summary = createElement("p", "dialog-summary", item.summary);
 
   body.append(makeMeta(item), title, summary);
+  appendDialogFullText(body, item);
 
   if (item.titleOriginal && item.titleOriginal !== item.title) {
     const original = createElement("div", "dialog-original");
@@ -239,16 +287,20 @@ function openDialog(item) {
     body.append(original);
   }
 
-  const detailLink = createElement("a", "secondary-button dialog-link", "打开独立页面");
-  detailLink.href = `news/${encodeURIComponent(item.id)}.html`;
-  body.append(detailLink);
+  appendDialogRelatedSources(body, item);
 
-  const link = createElement("a", "primary-button dialog-link", "阅读官方原文");
+  const actions = createElement("div", "dialog-actions");
+  const detailLink = createElement("a", "primary-button dialog-link", "打开独立页面");
+  detailLink.href = `news/${encodeURIComponent(item.id)}.html`;
+
+  const link = createElement("a", "secondary-button dialog-link", "核对官方原文");
   link.href = item.url;
   link.target = "_blank";
   link.rel = "noopener noreferrer";
   link.append(createElement("span", "", "↗"));
-  body.append(link);
+
+  actions.append(detailLink, link);
+  body.append(actions);
 
   elements.dialogContent.replaceChildren(media, body);
   document.body.style.overflow = "hidden";

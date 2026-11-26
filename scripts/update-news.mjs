@@ -48,6 +48,86 @@ const categoryRules = [
 
 const excludedPattern = /obituary|in memoriam|people of nasa|budget analyst|art challenge|photo of the day|image of the day|eye of the sahara|wind tunnel|earth observation/i;
 
+const duplicateStoryRules = [
+  {
+    survivorUrl: "https://science.nasa.gov/blogs/europa-clipper/2026/11/25/nasas-europa-clipper-zooming-by-earth-on-way-to-jupiters-icy-moon/",
+    relatedUrl: "https://science.nasa.gov/mission/europa-clipper/earth-flyby/",
+  },
+];
+
+const languageNoticePattern = /(?:Read this story in Spanish here\.?|Lee esta historia en español aquí\.?|请在此阅读西班牙文版文章。?)[ \t]*/gi;
+const languageNoticeOnlyPattern = /^(?:Read this story in Spanish here\.?|Lee esta historia en español aquí\.?|请在此阅读西班牙文版文章。?)$/i;
+
+function normalizeChineseTerms(value = "") {
+  return String(value)
+    .replace(/欧罗巴快艇/g, "欧罗巴快船")
+    .replace(/詹姆斯·韦布/g, "詹姆斯·韦伯");
+}
+
+function removeLanguageNotices(value = "") {
+  return String(value).replace(languageNoticePattern, " ").trim();
+}
+
+function cleanDisplayText(value = "") {
+  return removeLanguageNotices(normalizeChineseTerms(value)).replace(/\s+/g, " ").trim();
+}
+
+function cleanArticleText(value = "") {
+  return removeLanguageNotices(normalizeChineseTerms(value))
+    .split(/\r?\n/)
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function cleanNewsItem(item) {
+  const cleaned = {
+    ...item,
+    title: cleanDisplayText(item.title),
+    titleOriginal: cleanDisplayText(item.titleOriginal),
+    summary: cleanDisplayText(item.summary),
+    summaryOriginal: cleanDisplayText(item.summaryOriginal),
+    content: cleanArticleText(item.content),
+    contentOriginal: cleanArticleText(item.contentOriginal),
+  };
+  if (item.relatedSources?.length) {
+    cleaned.relatedSources = item.relatedSources.map((source) => ({
+      ...source,
+      title: cleanDisplayText(source.title),
+      titleOriginal: cleanDisplayText(source.titleOriginal),
+    }));
+  } else {
+    delete cleaned.relatedSources;
+  }
+  return cleaned;
+}
+
+function mergeKnownDuplicateStories(items) {
+  const merged = [...items];
+  for (const rule of duplicateStoryRules) {
+    const survivorIndex = merged.findIndex((item) => item.url === rule.survivorUrl);
+    const relatedIndex = merged.findIndex((item) => item.url === rule.relatedUrl);
+    if (survivorIndex < 0 || relatedIndex < 0) continue;
+
+    const survivor = merged[survivorIndex];
+    const related = merged[relatedIndex];
+    const relatedSources = [
+      ...(survivor.relatedSources || []),
+      {
+        localId: related.id,
+        source: related.source,
+        title: related.title,
+        titleOriginal: related.titleOriginal,
+        url: related.url,
+        publishedAt: related.publishedAt,
+      },
+    ].filter((source, index, all) => all.findIndex((candidate) => candidate.url === source.url) === index);
+    merged[survivorIndex] = { ...survivor, relatedSources };
+    merged.splice(relatedIndex, 1);
+  }
+  return merged;
+}
+
 function decodeEntities(value = "") {
   return value
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
@@ -86,10 +166,9 @@ function truncate(value, limit) {
 }
 
 function summarizeHtml(value) {
-  const text = htmlToText(value)
+  const text = cleanDisplayText(htmlToText(value)
     .replace(/The post .* appeared first on .*$/i, "")
-    .replace(/\[…\]|\[\.\.\.\]/g, "")
-    .trim();
+    .replace(/\[…\]|\[\.\.\.\]/g, ""));
   const sentences = text.match(/[^.!?。！？]+[.!?。！？]+|[^.!?。！？]+$/g) || [text];
   let summary = "";
   for (const sentence of sentences) {
@@ -128,7 +207,7 @@ function extractArticleText(value, source) {
       if (!text || seen.has(text)) return;
       if (/^The post .+ appeared first on /i.test(text)) return;
       if (/^Get the latest from NASA delivered every week\.?/i.test(text)) return;
-      if (/^Lee esta historia en español aquí\.?$/i.test(text)) return;
+      if (languageNoticeOnlyPattern.test(text)) return;
       const onlyLink = element.children("a").length === 1
         && element.children("a").first().text().replace(/\s+/g, " ").trim() === text;
       if (onlyLink && text.length < 140) return;
@@ -464,11 +543,13 @@ async function main() {
     else console.warn(`${name}：读取失败（${result.reason?.message || "未知错误"}）`);
   });
 
+  const suppressedUrls = new Set(duplicateStoryRules.map((rule) => rule.relatedUrl));
   const candidates = new Map();
   for (const result of successfulSources) {
     for (const item of result.value) {
-      if (!item.category) continue;
-      if (!candidates.has(item.id)) candidates.set(item.id, item);
+      if (!item.category || suppressedUrls.has(item.url)) continue;
+      const cleaned = cleanNewsItem(item);
+      if (!candidates.has(cleaned.id)) candidates.set(cleaned.id, cleaned);
     }
   }
 
@@ -479,19 +560,20 @@ async function main() {
   const dailyLimit = process.env.MYMEMORY_EMAIL ? 45000 : 4800;
   const now = new Date().toISOString();
 
-  const items = [...existingById.values()]
+  const items = mergeKnownDuplicateStories([...existingById.values()]
     .map((item) => {
-      const title = item.titleOriginal || item.title;
-      const summary = item.summaryOriginal || item.summary;
+      const cleaned = cleanNewsItem(item);
+      const title = cleaned.titleOriginal || cleaned.title;
+      const summary = cleaned.summaryOriginal || cleaned.summary;
       return {
-        ...item,
-        category: item.category === "地外生命" ? classifyExoplanetStory(title, summary) : classify(title, summary),
-        image: item.image?.includes("/template/") ? "" : item.image,
+        ...cleaned,
+        category: cleaned.category === "地外生命" ? classifyExoplanetStory(title, summary) : classify(title, summary),
+        image: cleaned.image?.includes("/template/") ? "" : cleaned.image,
       };
     })
     .filter((item) => item.url && item.publishedAt && item.title && item.category)
     .filter((item) => item.source !== "ESA" || item.summaryOriginal)
-    .filter((item) => item.source !== "国家航天局" || item.summaryOriginal);
+    .filter((item) => item.source !== "国家航天局" || item.summaryOriginal));
   const byId = new Map(items.map((item) => [item.id, item]));
 
   for (const candidate of candidates.values()) {
@@ -511,6 +593,7 @@ async function main() {
   let contentTranslatedCount = 0;
 
   async function translateItem(item) {
+    item = cleanNewsItem(item);
     if (item.source === "国家航天局") {
       return {
         ...item,
@@ -603,7 +686,7 @@ async function main() {
     const current = byId.get(candidate.id);
     if (!current) continue;
     if (!current.image && candidate.image) current.image = candidate.image;
-    if (!current.contentOriginal && candidate.contentOriginal) current.contentOriginal = candidate.contentOriginal;
+    if (!current.contentOriginal && candidate.contentOriginal) current.contentOriginal = cleanArticleText(candidate.contentOriginal);
     if (candidate.category) current.category = candidate.category;
   }
 

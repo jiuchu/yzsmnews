@@ -82,6 +82,44 @@ function paragraphsHtml(value = "") {
     .join("");
 }
 
+function relatedSourcesHtml(item) {
+  const sources = (item.relatedSources || []).filter((source) => safeImageUrl(source.url) && (source.title || source.titleOriginal));
+  if (!sources.length) return "";
+  return `<section class="article-related-sources"><h2>同事件官方报道</h2><ul>${sources.map((source) => `
+    <li><a href="${escapeHtml(safeImageUrl(source.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title || source.titleOriginal)} <span aria-hidden="true">↗</span></a></li>`).join("")}</ul></section>`;
+}
+
+function renderAliasPage(item, alias) {
+  const target = `${encodeURIComponent(item.id)}.html`;
+  const title = alias.title || item.title;
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="0; url=${escapeHtml(target)}">
+  <link rel="canonical" href="${escapeHtml(articleUrl(item))}">
+  <title>${escapeHtml(title)} · 宇宙生命</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="space-background" aria-hidden="true"></div>
+  <main class="article-main">
+    <article>
+      <p class="article-kicker">动态已合并</p>
+      <h1 class="article-title">${escapeHtml(title)}</h1>
+      <p class="article-summary">这条动态已合并到同事件的完整报道。</p>
+      <div class="article-actions">
+        <a class="primary-button" href="${escapeHtml(target)}">阅读合并后的报道 <span aria-hidden="true">→</span></a>
+        <a class="secondary-button" href="../index.html">返回首页</a>
+      </div>
+    </article>
+  </main>
+</body>
+</html>`;
+}
+
 function renderDetailPage(item, items) {
   const url = articleUrl(item);
   const image = safeImageUrl(item.image);
@@ -183,7 +221,7 @@ function renderDetailPage(item, items) {
       <p class="article-summary">${escapeHtml(item.summary)}</p>
       ${contentHtml}
       ${originalTitle}
-      ${originalFullHtml}
+      ${originalFullHtml}${relatedSourcesHtml(item)}
       <p class="article-notice">${notice}</p>
       <div class="article-actions">
         <a class="primary-button" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">核对官方原文 <span aria-hidden="true">↗</span></a>
@@ -204,7 +242,11 @@ function renderDetailPage(item, items) {
 function renderRss(items, updatedAt) {
   const entries = items.map((item) => {
     const content = hasChinese(item.content || "") ? item.content : item.contentOriginal || item.summary || "";
-    const body = `${paragraphsHtml(content)}<p><a href="${escapeHtml(item.url)}">核对官方原文</a></p>`;
+    const related = (item.relatedSources || []).filter((source) => safeImageUrl(source.url) && (source.title || source.titleOriginal));
+    const relatedHtml = related.length
+      ? `<p><strong>同事件官方报道：</strong>${related.map((source) => `<a href="${escapeHtml(safeImageUrl(source.url))}">${escapeHtml(source.title || source.titleOriginal)}</a>`).join(" · ")}</p>`
+      : "";
+    const body = `${paragraphsHtml(content)}${relatedHtml}<p><a href="${escapeHtml(item.url)}">核对官方原文</a></p>`;
     return `    <item>
       <title>${escapeXml(item.title)}</title>
       <link>${escapeXml(articleUrl(item))}</link>
@@ -235,10 +277,23 @@ ${entries}
 
 export async function renderNewsArtifacts(items, updatedAt) {
   await mkdir(newsDir, { recursive: true });
-  const keep = new Set(items.map((item) => `${item.id}.html`));
+  const aliasTargets = new Map();
+  for (const item of items) {
+    for (const source of item.relatedSources || []) {
+      if (!/^[a-f0-9]{14}$/.test(source.localId || "") || source.localId === item.id) continue;
+      if (!aliasTargets.has(source.localId)) aliasTargets.set(source.localId, { item, alias: source });
+    }
+  }
+  const keep = new Set([
+    ...items.map((item) => `${item.id}.html`),
+    ...[...aliasTargets.keys()].map((id) => `${id}.html`),
+  ]);
   for (const file of await readdir(newsDir)) {
     if (file.endsWith(".html") && !keep.has(file)) await unlink(resolve(newsDir, file));
   }
-  await Promise.all(items.map((item) => writeFile(resolve(newsDir, `${item.id}.html`), renderDetailPage(item, items), "utf8")));
+  await Promise.all([
+    ...items.map((item) => writeFile(resolve(newsDir, `${item.id}.html`), renderDetailPage(item, items), "utf8")),
+    ...[...aliasTargets.values()].map(({ item, alias }) => writeFile(resolve(newsDir, `${alias.localId}.html`), renderAliasPage(item, alias), "utf8")),
+  ]);
   await writeFile(rssPath, renderRss(items, updatedAt), "utf8");
 }
