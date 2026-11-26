@@ -1,0 +1,48 @@
+name: 更新宇宙生命新闻
+
+on:
+  schedule:
+    - cron: "17 */3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-news
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 获取仓库
+        uses: actions/checkout@v4
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 抓取并翻译官方动态
+        run: npm run update
+        env:
+          MYMEMORY_EMAIL: ${{ secrets.MYMEMORY_EMAIL }}
+          SITE_URL: https://jiuchu.github.io/yzsmnews/
+
+      - name: 保存更新
+        run: |
+          if [ -z "$(git status --porcelain -- data/news.json news rss.xml)" ]; then
+            echo "新闻数据没有变化"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/news.json news rss.xml
+          git commit -m "更新宇宙生命官方动态"
+          git push
