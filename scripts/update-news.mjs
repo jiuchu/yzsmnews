@@ -557,7 +557,7 @@ async function main() {
   const usage = existing.translationUsage?.date === usageDate
     ? { date: usageDate, characters: Number(existing.translationUsage.characters) || 0 }
     : { date: usageDate, characters: 0 };
-  const dailyLimit = process.env.MYMEMORY_EMAIL ? 45000 : 4800;
+  const dailyLimit = process.env.MYMEMORY_EMAIL ? 50000 : 4800;
   const now = new Date().toISOString();
 
   const items = mergeKnownDuplicateStories([...existingById.values()]
