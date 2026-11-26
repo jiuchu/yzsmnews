@@ -100,6 +100,45 @@ function summarizeHtml(value) {
   return truncate(summary || text, maxSummaryCharacters);
 }
 
+function extractArticleText(value, source) {
+  if (!value) return "";
+  const $ = cheerio.load(value);
+  $("script, style, noscript, figure, figcaption, iframe, form, button, svg, .jp-relatedposts, .sharedaddy, .wp-block-latest-posts, .wzdb_gn").remove();
+
+  const selectors = source === "ESA"
+    ? ["p.Paragraph", ".article__content", "main"]
+    : source === "国家航天局"
+      ? [".wz_conten", ".pages_content", "article"]
+      : [".entry-content", "article", "main"];
+  let roots = $();
+  for (const selector of selectors) {
+    roots = $(selector);
+    if (roots.length) break;
+  }
+  if (!roots.length) roots = $.root();
+
+  const paragraphs = [];
+  const seen = new Set();
+  roots.each((_, root) => {
+    const rootNode = $(root);
+    const nodes = rootNode.is("p, h2, h3, h4, li") ? rootNode : rootNode.find("p, h2, h3, h4, li");
+    nodes.each((__, node) => {
+      const element = $(node);
+      const text = element.text().replace(/\s+/g, " ").trim();
+      if (!text || seen.has(text)) return;
+      if (/^The post .+ appeared first on /i.test(text)) return;
+      if (/^Get the latest from NASA delivered every week\.?/i.test(text)) return;
+      if (/^Lee esta historia en español aquí\.?$/i.test(text)) return;
+      const onlyLink = element.children("a").length === 1
+        && element.children("a").first().text().replace(/\s+/g, " ").trim() === text;
+      if (onlyLink && text.length < 140) return;
+      seen.add(text);
+      paragraphs.push(text);
+    });
+  });
+  return paragraphs.join("\n\n");
+}
+
 function canonicalUrl(value, base) {
   if (!value || !String(value).trim()) return "";
   try {
@@ -142,13 +181,16 @@ async function fetchText(url, timeout = 30000) {
   try {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(timeout),
-      headers: { "User-Agent": "CosmosLifeAtlas/1.0" },
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.text();
   } catch (error) {
     if (process.platform === "win32") {
-      return execFileSync("curl.exe", ["-L", "--max-time", "30", "-A", "Mozilla/5.0", "-sS", url], {
+      return execFileSync("curl.exe", ["-L", "--ssl-no-revoke", "--fail-with-body", "--max-time", "30", "-A", "Mozilla/5.0", "-sS", url], {
         encoding: "utf8",
         maxBuffer: 12 * 1024 * 1024,
       });
@@ -170,8 +212,9 @@ async function collectNasa() {
     const feed = await parser.parseString(normalizedXml);
     return (feed.items || []).slice(0, 16).map((item) => {
       const url = canonicalUrl(item.link, feedUrl);
-      const content = item.content || item["content:encoded"] || item.description || "";
-      const imageContent = item["content:encoded"] || content;
+      const fullHtml = item["content:encoded"] || item.content || item.description || "";
+      const content = item.content || item.description || fullHtml;
+      const imageContent = fullHtml;
       const title = htmlToText(item.title);
       const summary = summarizeHtml(content);
       return {
@@ -183,6 +226,7 @@ async function collectNasa() {
         titleOriginal: title,
         summary,
         summaryOriginal: summary,
+        contentOriginal: extractArticleText(fullHtml, "NASA"),
         category: classify(title, summary),
         image: item.enclosure?.url || firstImageFromHtml(imageContent, url),
       };
@@ -308,6 +352,48 @@ async function collectCnsa() {
   return items;
 }
 
+async function ensureArticleContent(item) {
+  if (item.contentOriginal?.trim()) return item;
+  const lastAttempt = item.contentFetchAttemptAt ? new Date(item.contentFetchAttemptAt).getTime() : 0;
+  if (Date.now() - lastAttempt < 6 * 60 * 60 * 1000) return item;
+
+  try {
+    const html = await fetchText(item.url);
+    const contentOriginal = extractArticleText(html, item.source);
+    if (!contentOriginal || contentOriginal.length < 80) throw new Error("正文提取结果过短");
+    return {
+      ...item,
+      contentOriginal,
+      content: item.source === "国家航天局" ? contentOriginal : item.content || "",
+      contentTranslationPending: item.source !== "国家航天局",
+      contentFetchedAt: new Date().toISOString(),
+      contentFetchAttemptAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.warn(`全文读取失败：${item.url}（${error.message}）`);
+    return { ...item, contentFetchAttemptAt: new Date().toISOString() };
+  }
+}
+
+async function enrichContent(items, limit = 12) {
+  const queue = items.filter((item) => !item.contentOriginal?.trim()).slice(0, limit);
+  const results = [];
+  let cursor = 0;
+  async function worker() {
+    while (cursor < queue.length) {
+      const item = queue[cursor++];
+      results.push(await ensureArticleContent(item));
+      if (cursor < queue.length) await new Promise((resolvePromise) => setTimeout(resolvePromise, 350));
+    }
+  }
+  await Promise.all([worker(), worker()]);
+  return new Map(results.map((item) => [item.id, item]));
+}
+
+function hasChinese(value = "") {
+  return /[\u3400-\u9fff]/.test(value);
+}
+
 function beijingDateKey() {
   return new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
@@ -317,14 +403,17 @@ function chunkByBytes(text, limit = translationChunkBytes) {
   let current = "";
   for (const character of text) {
     if (current && Buffer.byteLength(current + character, "utf8") > limit) {
-      chunks.push(current);
-      current = character;
+      let split = current.length;
+      while (split > 0 && !/\s/.test(current[split - 1])) split -= 1;
+      if (split < current.length * 0.6) split = current.length;
+      chunks.push(current.slice(0, split).trim());
+      current = `${current.slice(split).trimStart()}${character}`;
     } else {
       current += character;
     }
   }
-  if (current) chunks.push(current);
-  return chunks;
+  if (current.trim()) chunks.push(current.trim());
+  return chunks.filter(Boolean);
 }
 
 async function translateText(text, email) {
@@ -389,9 +478,6 @@ async function main() {
     : { date: usageDate, characters: 0 };
   const dailyLimit = process.env.MYMEMORY_EMAIL ? 45000 : 4800;
   const now = new Date().toISOString();
-  const pendingExisting = (existing.items || [])
-    .filter((item) => item.translationPending && item.source !== "国家航天局")
-    .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 
   const items = [...existingById.values()]
     .map((item) => {
@@ -407,41 +493,91 @@ async function main() {
     .filter((item) => item.source !== "ESA" || item.summaryOriginal)
     .filter((item) => item.source !== "国家航天局" || item.summaryOriginal);
   const byId = new Map(items.map((item) => [item.id, item]));
+
+  for (const candidate of candidates.values()) {
+    const current = byId.get(candidate.id);
+    if (!current || current.contentOriginal || !candidate.contentOriginal) continue;
+    byId.set(candidate.id, {
+      ...current,
+      contentOriginal: candidate.contentOriginal,
+      contentTranslationPending: true,
+    });
+  }
+
+  const enriched = await enrichContent([...byId.values()]);
+  for (const [id, item] of enriched) byId.set(id, item);
+
   let translatedCount = 0;
+  let contentTranslatedCount = 0;
 
   async function translateItem(item) {
-    if (item.source === "国家航天局") return item;
-    const titleCost = item.titleOriginal.length;
-    const summaryCost = item.summaryOriginal.length;
-    if (usage.characters + titleCost + summaryCost > dailyLimit) return item;
+    if (item.source === "国家航天局") {
+      return {
+        ...item,
+        content: item.contentOriginal || item.content || "",
+        contentTranslationPending: false,
+      };
+    }
 
     let title = item.title;
     let summary = item.summary;
+    let content = item.content || "";
     let pending = false;
-    try {
-      title = await translateText(item.titleOriginal, process.env.MYMEMORY_EMAIL);
-      usage.characters += titleCost;
-    } catch (error) {
-      console.warn(`标题翻译失败：${item.url}（${error.message}）`);
-      pending = true;
-    }
-    try {
-      summary = await translateText(item.summaryOriginal, process.env.MYMEMORY_EMAIL);
-      usage.characters += summaryCost;
-    } catch (error) {
-      console.warn(`摘要翻译失败：${item.url}（${error.message}）`);
-      pending = true;
+    let contentPending = false;
+    let translatedFields = 0;
+
+    async function translateField(value, original, label) {
+      if (!original || hasChinese(value)) return value;
+      if (usage.characters + original.length > dailyLimit) {
+        pending = true;
+        return value;
+      }
+      try {
+        const translated = await translateText(original, process.env.MYMEMORY_EMAIL);
+        usage.characters += original.length;
+        translatedFields += 1;
+        return translated;
+      } catch (error) {
+        console.warn(`${label}翻译失败：${item.url}（${error.message}）`);
+        pending = true;
+        return value;
+      }
     }
 
-    if (!pending) translatedCount += 1;
+    title = await translateField(title, item.titleOriginal, "标题");
+    summary = await translateField(summary, item.summaryOriginal, "摘要");
+
+    if (item.contentOriginal && !hasChinese(content)) {
+      if (usage.characters + item.contentOriginal.length > dailyLimit) {
+        contentPending = true;
+      } else {
+        try {
+          content = await translateText(item.contentOriginal, process.env.MYMEMORY_EMAIL);
+          usage.characters += item.contentOriginal.length;
+          contentTranslatedCount += 1;
+        } catch (error) {
+          console.warn(`全文翻译失败：${item.url}（${error.message}）`);
+          contentPending = true;
+        }
+      }
+    }
+
+    if (translatedFields) translatedCount += 1;
     return {
       ...item,
       title,
       summary,
+      content,
       translationPending: pending,
+      contentTranslationPending: contentPending,
       lastTranslationAttemptAt: now,
     };
   }
+
+  const pendingExisting = [...byId.values()]
+    .filter((item) => item.source !== "国家航天局")
+    .filter((item) => item.translationPending || item.contentTranslationPending || !item.contentOriginal || !hasChinese(item.content || ""))
+    .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 
   for (const item of pendingExisting) {
     const lastAttempt = item.lastTranslationAttemptAt ? new Date(item.lastTranslationAttemptAt).getTime() : 0;
@@ -453,19 +589,21 @@ async function main() {
   const newCandidates = [...candidates.values()]
     .filter((item) => !byId.has(item.id))
     .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-
+  const enrichedCandidates = await enrichContent(newCandidates);
   for (const candidate of newCandidates) {
-    if (usage.characters >= dailyLimit && candidate.source !== "国家航天局") {
-      byId.set(candidate.id, { ...candidate, translationPending: true });
-      continue;
-    }
-    byId.set(candidate.id, await translateItem(candidate));
+    const withContent = enrichedCandidates.get(candidate.id) || candidate;
+    byId.set(candidate.id, await translateItem({
+      ...withContent,
+      translationPending: candidate.source !== "国家航天局",
+      contentTranslationPending: candidate.source !== "国家航天局" && Boolean(candidate.contentOriginal || withContent.contentOriginal),
+    }));
   }
 
   for (const candidate of candidates.values()) {
     const current = byId.get(candidate.id);
     if (!current) continue;
     if (!current.image && candidate.image) current.image = candidate.image;
+    if (!current.contentOriginal && candidate.contentOriginal) current.contentOriginal = candidate.contentOriginal;
     if (candidate.category) current.category = candidate.category;
   }
 
@@ -482,7 +620,7 @@ async function main() {
 
   await writeFile(dataPath, `${JSON.stringify(output, null, 2)}\n`, "utf8");
   await renderNewsArtifacts(merged, now);
-  console.log(`已写入 ${merged.length} 条动态，本次完成中文翻译 ${translatedCount} 条，今日翻译用量 ${usage.characters}/${dailyLimit} 字符。`);
+  console.log(`已写入 ${merged.length} 条动态，本次完成标题/摘要中文翻译 ${translatedCount} 条、全文中文翻译 ${contentTranslatedCount} 条，今日翻译用量 ${usage.characters}/${dailyLimit} 字符。`);
 }
 
 main().catch((error) => {
