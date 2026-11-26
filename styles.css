@@ -1023,6 +1023,46 @@ main {
   line-height: 1.95;
 }
 
+.article-content-section {
+  margin-top: 44px;
+}
+
+.article-content-section h2 {
+  margin: 0 0 22px;
+  font-size: clamp(22px, 3vw, 28px);
+}
+
+.article-content p {
+  margin: 0 0 1.25em;
+  color: #d8dce6;
+  font-size: clamp(16px, 2vw, 18px);
+  line-height: 1.95;
+  overflow-wrap: anywhere;
+}
+
+.article-original-full {
+  margin-top: 28px;
+  padding: 18px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.article-original-full summary {
+  cursor: pointer;
+  color: var(--gold);
+  font-size: 14px;
+}
+
+.article-original-full .article-content {
+  margin-top: 20px;
+}
+
+.article-original-full .article-content p {
+  color: var(--muted);
+  font-size: 15px;
+}
+
 .article-original {
   margin-top: 28px;
   padding: 20px 22px;
