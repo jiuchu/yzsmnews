@@ -69,15 +69,47 @@ function relatedItems(item, items) {
   return [...sameCategory, ...others].slice(0, 3);
 }
 
+function hasChinese(value = "") {
+  return /[\u3400-\u9fff]/.test(value);
+}
+
+function paragraphsHtml(value = "") {
+  return String(value)
+    .trim()
+    .split(/\n{2,}/)
+    .filter(Boolean)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
 function renderDetailPage(item, items) {
   const url = articleUrl(item);
   const image = safeImageUrl(item.image);
   const imageSrc = image || "../textures-1k/2k_earth_daymap.jpg";
   const related = relatedItems(item, items);
   const originalTitle = item.titleOriginal && item.titleOriginal !== item.title
-    ? `<section class="article-original"><span>英文原标题</span><p>${escapeHtml(item.titleOriginal)}</p></section>`
+    ? `<section class="article-original"><span>${item.source === "国家航天局" ? "原始标题" : "英文原标题"}</span><p>${escapeHtml(item.titleOriginal)}</p></section>`
     : "";
-  const pending = item.translationPending ? '<span class="pending-badge">英文原文</span>' : "";
+  const pending = item.translationPending
+    ? '<span class="pending-badge">英文原文</span>'
+    : item.contentTranslationPending
+      ? '<span class="pending-badge">英文全文</span>'
+      : "";
+  const contentOriginal = item.contentOriginal?.trim() || "";
+  const translatedContent = hasChinese(item.content || "") ? item.content.trim() : "";
+  const contentText = translatedContent || contentOriginal;
+  const contentHeading = translatedContent ? "全文" : contentOriginal ? "英文全文" : "";
+  const contentHtml = contentText
+    ? `<section class="article-content-section"><h2>${contentHeading}</h2><div class="article-content">${paragraphsHtml(contentText)}</div></section>`
+    : '<p class="article-notice">全文暂未采集成功，下次自动更新会重试。当前展示官方摘要。</p>';
+  const originalFullHtml = contentOriginal && translatedContent && item.source !== "国家航天局"
+    ? `<details class="article-original-full"><summary>查看英文全文</summary><div class="article-content">${paragraphsHtml(contentOriginal)}</div></details>`
+    : "";
+  const notice = translatedContent
+    ? "中文内容为机器翻译全文，请以官方原文为准。规划、假设与已确认发现均按来源表述保留区别。"
+    : contentOriginal
+      ? "中文全文尚未完成翻译，以下先展示官方英文全文；下次自动更新会继续补译。"
+      : "中文内容为机器翻译摘要，请以官方原文为准。";
   const relatedHtml = related.length
     ? `<section class="related-section"><h2>相关阅读</h2><div class="related-grid">${related.map((candidate) => `
         <a class="related-card" href="${escapeHtml(candidate.id)}.html">
@@ -90,10 +122,11 @@ function renderDetailPage(item, items) {
     "@type": "NewsArticle",
     headline: item.title,
     description: item.summary,
+    articleBody: contentText || item.summary,
     datePublished: item.publishedAt,
     dateModified: item.publishedAt,
     image: [absoluteImage(item)],
-    inLanguage: "zh-CN",
+    inLanguage: translatedContent ? "zh-CN" : contentOriginal ? "en" : "zh-CN",
     mainEntityOfPage: url,
     url,
     author: { "@type": "Organization", name: item.source, url: sourceUrl(item.source) },
@@ -148,10 +181,12 @@ function renderDetailPage(item, items) {
       </div>
       <img class="article-cover" src="${escapeHtml(imageSrc)}" alt="${escapeHtml(item.title)}" referrerpolicy="no-referrer">
       <p class="article-summary">${escapeHtml(item.summary)}</p>
+      ${contentHtml}
       ${originalTitle}
-      <p class="article-notice">中文内容为机器翻译摘要，请以官方原文为准。规划、假设与已确认发现均按来源表述保留区别。</p>
+      ${originalFullHtml}
+      <p class="article-notice">${notice}</p>
       <div class="article-actions">
-        <a class="primary-button" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">阅读官方原文 <span aria-hidden="true">↗</span></a>
+        <a class="primary-button" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">核对官方原文 <span aria-hidden="true">↗</span></a>
         <a class="secondary-button" href="../index.html">返回首页</a>
       </div>
     </article>
@@ -167,7 +202,10 @@ function renderDetailPage(item, items) {
 }
 
 function renderRss(items, updatedAt) {
-  const entries = items.map((item) => `    <item>
+  const entries = items.map((item) => {
+    const content = hasChinese(item.content || "") ? item.content : item.contentOriginal || item.summary || "";
+    const body = `${paragraphsHtml(content)}<p><a href="${escapeHtml(item.url)}">核对官方原文</a></p>`;
+    return `    <item>
       <title>${escapeXml(item.title)}</title>
       <link>${escapeXml(articleUrl(item))}</link>
       <guid isPermaLink="true">${escapeXml(articleUrl(item))}</guid>
@@ -176,8 +214,9 @@ function renderRss(items, updatedAt) {
       <source url="${escapeXml(sourceUrl(item.source))}">${escapeXml(item.source)}</source>
       <category>${escapeXml(item.category)}</category>
       <description><![CDATA[${String(item.summary || "").replace(/\]\]>/g, "]]]]><![CDATA[>")}]]></description>
-      <content:encoded><![CDATA[<p>${String(item.summary || "").replace(/</g, "&lt;").replace(/]]>/g, "]]]]><![CDATA[>")}</p><p><a href="${escapeXml(item.url)}">阅读官方原文</a></p>]]></content:encoded>
-    </item>`).join("\n");
+      <content:encoded><![CDATA[${body.replace(/\]\]>/g, "]]]]><![CDATA[>")}]]></content:encoded>
+    </item>`;
+  }).join("\n");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/">
