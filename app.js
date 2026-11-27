@@ -348,36 +348,93 @@ function resetFilters() {
   renderGrid();
 }
 
-async function loadNews() {
-  elements.grid.setAttribute("aria-busy", "true");
+const NEWS_CACHE_KEY = "yzsmnews:news:v1";
+const NEWS_FETCH_TIMEOUT = 15000;
+const NEWS_FETCH_ATTEMPTS = 2;
+
+function isValidNews(data) {
+  return data && Array.isArray(data.items);
+}
+
+function readCachedNews() {
   try {
-    const response = await fetch(`data/news.json?t=${Date.now()}`, { cache: "no-store" });
+    const data = JSON.parse(localStorage.getItem(NEWS_CACHE_KEY) || "null");
+    return isValidNews(data) ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+function cacheNews(data) {
+  try {
+    localStorage.setItem(NEWS_CACHE_KEY, JSON.stringify(data));
+  } catch {}
+}
+
+function renderNews(data) {
+  state.items = data.items;
+  state.updatedAt = data.updatedAt;
+  renderStats();
+  renderFeatured();
+  renderGrid();
+  document.documentElement.dataset.newsReady = "true";
+  document.documentElement.dataset.newsCount = String(data.items.length);
+}
+
+function showLoadError() {
+  elements.featured.replaceChildren();
+  elements.grid.replaceChildren();
+  const message = createElement("div", "error-state");
+  message.append(createElement("h3", "", "暂时无法读取动态"));
+  message.append(createElement("p", "", "请检查网络后重试。"));
+  const retry = createElement("button", "secondary-button", "重新读取");
+  retry.type = "button";
+  retry.addEventListener("click", loadNews);
+  message.append(retry);
+  elements.grid.append(message);
+  elements.resultsCount.textContent = "读取失败";
+  elements.loadMore.hidden = true;
+  document.documentElement.dataset.newsReady = "error";
+}
+
+async function fetchNews() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), NEWS_FETCH_TIMEOUT);
+  try {
+    const response = await fetch(`data/news.json?t=${Date.now()}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
-    if (!Array.isArray(data.items)) throw new Error("动态数据格式不正确");
+    if (!isValidNews(data)) throw new Error("动态数据格式不正确");
+    return data;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
-    state.items = data.items;
-    state.updatedAt = data.updatedAt;
-    renderStats();
-    renderFeatured();
-    renderGrid();
-    document.documentElement.dataset.newsReady = "true";
-    document.documentElement.dataset.newsCount = String(data.items.length);
+async function loadNews() {
+  const cached = readCachedNews();
+  if (cached) renderNews(cached);
+  elements.grid.setAttribute("aria-busy", "true");
+
+  try {
+    let data;
+    for (let attempt = 1; attempt <= NEWS_FETCH_ATTEMPTS; attempt += 1) {
+      try {
+        data = await fetchNews();
+        break;
+      } catch (error) {
+        if (attempt === NEWS_FETCH_ATTEMPTS) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+    renderNews(data);
+    cacheNews(data);
   } catch (error) {
     console.error("读取动态失败", error);
-    elements.featured.replaceChildren();
-    elements.grid.replaceChildren();
-    const message = createElement("div", "error-state");
-    message.append(createElement("h3", "", "暂时无法读取动态"));
-    message.append(createElement("p", "", "请检查网络后重试。"));
-    const retry = createElement("button", "secondary-button", "重新读取");
-    retry.type = "button";
-    retry.addEventListener("click", loadNews);
-    message.append(retry);
-    elements.grid.append(message);
-    elements.resultsCount.textContent = "读取失败";
-    elements.loadMore.hidden = true;
-    document.documentElement.dataset.newsReady = "error";
+    if (!state.items.length) showLoadError();
   } finally {
     elements.grid.removeAttribute("aria-busy");
   }
