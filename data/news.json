@@ -1,6 +1,23 @@
 {
-  "updatedAt": "2026-11-27T09:17:19.125Z",
+  "updatedAt": "2026-11-27T12:17:14.554Z",
   "items": [
+    {
+      "id": "6a4931111e4d64",
+      "source": "NASA",
+      "url": "https://science.nasa.gov/astrophysics/programs/physics-of-the-cosmos/community/ammb-stig-seminar-30-nov-2026/",
+      "publishedAt": "2026-11-27T12:03:00.000Z",
+      "title": "AMMB STIG研讨会，2026年11月30日",
+      "titleOriginal": "AMMB STIG Seminar, 30 Nov 2026",
+      "summary": "用于科学和探索的月球射电干涉仪（MoonRISE）演讲嘉宾Saptarshi Bandyopadhyay、Alex Hegedus和Marin Anderson研讨会链接待定",
+      "summaryOriginal": "Moon Radio Interferometer for Science and Exploration (MoonRISE) Speakers Saptarshi Bandyopadhyay, Alex Hegedus, and Marin Anderson Seminar Connection TBA",
+      "contentOriginal": "AMMB STIG Seminar, 30…\n\nProgram Analysis Group (PhysPAG)Science GroupsMeetingsCosmic PathfindersScience GapsEarly Career Workshops\n\nLocation\n\nVirtual\n\nDates\n\n30 November 202611:00am PT / 2:00pm ET\n\nCommunity\n\nAMMB STIG\n\nType\n\nSeminar\n\nMoon Radio Interferometer for Science and Exploration (MoonRISE)\n\nSpeakers\n\nSaptarshi Bandyopadhyay, Alex Hegedus, and Marin Anderson\n\nSeminar Connection\n\nTBA\n\nNews Straight to Your Inbox\n\nSubscribe to your community email news list\n\nWe will never share your email address.",
+      "category": "行星科学",
+      "image": "https://assets.science.nasa.gov/dynamicimage/assets/science/missions/webb/outreach/migrated/non-stellem-assets/banner_wt-home-adbox-eagle.jpg?w=1536&h=1200&fit=clip",
+      "content": "AMMB STIG研讨会，30…\n\n项目分析小组（PhysPAG）科学小组会议宇宙先驱科学缺口早期职业研讨会\n\n地点\n\n线上\n\n日期\n\n2026年11月30日太平洋时间上午11:00 / 美国东部时间下午2:00\n\n社区\n\nAMMB STIG\n\n类型\n\n研讨会\n\n用于科学和探索的月球射电干涉仪（MoonRISE）\n\n演讲嘉宾\n\nSaptarshi Bandyopadhyay、Alex Hegedus 和 Marin Anderson\n\n研讨会链接\n\n待定\n\n新闻直达您的收件箱\n\n订阅您的社区电子邮件新闻列表\n\n我们绝不会分享您的电子邮件地址。",
+      "translationPending": false,
+      "contentTranslationPending": false,
+      "lastTranslationAttemptAt": "2026-11-27T12:17:14.554Z"
+    },
     {
       "id": "284a39e2dc64a7",
       "source": "NASA",
@@ -304,6 +321,6 @@
   ],
   "translationUsage": {
     "date": "2026-11-27",
-    "characters": 20900
+    "characters": 21592
   }
 }
