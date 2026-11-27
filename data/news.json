@@ -1,6 +1,23 @@
 {
-  "updatedAt": "2026-11-27T12:17:14.554Z",
+  "updatedAt": "2026-11-27T15:17:17.805Z",
   "items": [
+    {
+      "id": "6121335bd5a3bf",
+      "source": "NASA",
+      "url": "https://science.nasa.gov/science-research/biological-physical-sciences/nasas-ng-25-mission-to-launch-pioneering-space-crops-research/",
+      "publishedAt": "2026-11-27T14:22:00.000Z",
+      "title": "美国宇航局NG-25任务将开启开创性的太空作物研究",
+      "titleOriginal": "NASA’s NG-25 Mission to Launch Pioneering Space Crops Research",
+      "summary": "NASA的实验，包括首个太空作物生产系统，将搭乘诺斯罗普·格鲁曼公司为该机构执行的第25次商业补给服务任务前往国际空间站。美国宇航局生物与物理科学部的研究将推进有益于地球生命和未来探索的研究，拓展对太空作物和人类健康的认识。",
+      "summaryOriginal": "NASA experiments, including a first-of-its-kind space crop production system, will travel to the International Space Station aboard Northrop Grumman’s 25th Commercial Resupply Services mission for the agency. Investigations from NASA’s Biological and Physical Sciences Division will advance research that benefits life on Earth and future exploration, expanding knowledge of space crops and human health.",
+      "contentOriginal": "NASA experiments, including a first-of-its-kind space crop production system, will travel to the International Space Station aboard Northrop Grumman’s 25th Commercial Resupply Services mission for the agency.\n\nInvestigations from NASA’s Biological and Physical Sciences Division will advance research that benefits life on Earth and future exploration, expanding knowledge of space crops and human health.\n\nGroundbreaking space crops\n\nAstronauts will need sustainable sources of food to travel farther and stay longer in space. To help understand how crop production works in microgravity, NASA is launching a novel space crops experiment.\n\nThe new prototype growth chamber will provide critical insights for developing safe, nutritious, and reliable crop production systems for future Moon Base habitats and Mars missions. Knowledge gained from the space crop production system also could help inform agricultural practices such as vertical farming and indoor growing systems.\n\nResearchers will use this investigation to validate the system’s water delivery and volume optimization technology aboard the space station.\n\nTiny brain models aboard station\n\nA precision health investigation is the next step toward enabling long-duration studies of human brain tissues in space.\n\nThe research builds on a previous investigation that sent small, lab-grown models of the human brain, called miBrains, to the space station. This experiment will validate a miniature fluid-handling system designed to mix, deliver, and maintain the nutrient-rich liquid needed to keep the tissues alive.\n\nResearchers could use the findings to help identify potential neurological risks associated with spaceflight and develop strategies to protect astronaut health. It also may advance human tissue research and neurological disease modeling on Earth.\n\nBiological & Physical Sciences Division\n\nNASA’s Biological and Physical Sciences Division pioneers scientific discovery and enables exploration by using space environments to conduct investigations not possible on Earth. Studying biological and physical phenomena under extreme conditions allows researchers to advance the fundamental scientific knowledge required to go farther and stay longer in space, while also benefitting life on Earth.",
+      "category": "生命支持",
+      "image": "https://images-assets.nasa.gov/image/jsc2026e415098/jsc2026e415098~large.jpg?w=1920&h=1080&fit=clip&crop=faces%2Cfocalpoint",
+      "content": "NASA的实验，包括首个太空作物生产系统，将搭乘诺斯罗普·格鲁门公司为该机构执行的第25次商业补给服务任务前往国际空间站。\n\nNASA生物与物理科学部的研究将推进有益于地球生命和未来探索的研究，拓展对太空作物和人类健康的认识。开创性的太空作物\n\n宇航员需要可持续的食物来源，才能飞得更远，在太空中停留更久。为了帮助了解作物在微重力条件下是如何生长的，美国宇航局正在开展一项新颖的空间作物实验。\n\n新型原型栽培箱将为开发安全、营养和可靠的作物生产系统提供关键性见解，以用于未来的月球基地栖息地和火星任务。从空间作物生产系统获得的知识也有助于为垂直农业和室内种植系统等农业实践提供参考。\n\n研究人员将利用这项研究来验证该系统在空间站上的供水和水量优化技术。\n\n空间站上的微型大脑模型\n\n精准健康研究是实现长期太空任务的下一步。对人类脑组织在太空中的研究。\n\n这项研究建立在先前的研究基础上，该研究将名为miBrains的实验室培养的人脑小型模型送往空间站。该实验将验证一种微型流体处理系统，该系统旨在混合、输送和维持保持组织存活所需的富含营养的液体。\n\n研究人员可以利用这些发现来帮助识别潜在的与太空飞行相关的神经系统风险，并制定保护宇航员健康的策略。它还可能推动地球上的人体组织研究和神经疾病建模。\n\n生物与物理科学部\n\nNASA的生物与物理科学部利用太空环境开展在地球上无法进行的调查，从而引领科学发现并推动探索。研究极端条件下的生物和物理现象，使研究人员能够推进在太空走得更远、停留更久所需的基础科学知识，同时也能造福地球上的生命。",
+      "translationPending": false,
+      "contentTranslationPending": false,
+      "lastTranslationAttemptAt": "2026-11-27T15:17:17.805Z"
+    },
     {
       "id": "6a4931111e4d64",
       "source": "NASA",
@@ -321,6 +338,6 @@
   ],
   "translationUsage": {
     "date": "2026-11-27",
-    "characters": 21592
+    "characters": 24329
   }
 }
